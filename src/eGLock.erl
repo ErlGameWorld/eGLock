@@ -20,7 +20,8 @@ lockApply(KeyOrKeys, MFAOrFun, TimeOut) ->
 			lockApplys(KeyOrKeys, MFAOrFun, TimeOut, erlang:system_time(microsecond))
 	end.
 
-lockApply(Key, MFAOrFun, TimeOut, LastTime) ->
+-define(CASE(Cond, Then, That), case Cond of true -> Then; _ -> That end).
+lockApply(Key, MFAOrFun, TimeOut, FirstTime) ->
 	SelfPid = self(),
 	PidInfo = {Key, SelfPid},
 	ets:insert(?EtsGLockPid, PidInfo),
@@ -37,23 +38,17 @@ lockApply(Key, MFAOrFun, TimeOut, LastTime) ->
 				ok
 			end;
 		_ ->
+			LTimeOut = ?CASE(TimeOut == infinity, TimeOut, max(0, TimeOut - max(erlang:system_time(microsecond) - FirstTime, 0))),
 			receive
 				?ReTryLockApply ->
-					case TimeOut of
-						infinity ->
-							lockApply(Key, MFAOrFun, TimeOut, LastTime);
-						_ ->
-							CurTime = erlang:system_time(microsecond),
-							NewTimeOut = max(0, TimeOut - max(CurTime - LastTime, 0)),
-							lockApply(Key, MFAOrFun, NewTimeOut, CurTime)
-					end
-			after TimeOut ->
+					lockApply(Key, MFAOrFun, TimeOut, FirstTime)
+			after LTimeOut ->
 				ets:delete_object(?EtsGLockPid, PidInfo),
 				{error, {lock_timeout, Key}}
 			end
 	end.
 
-lockApplys(Keys, MFAOrFun, TimeOut, LastTime) ->
+lockApplys(Keys, MFAOrFun, TimeOut, FirstTime) ->
 	SelfPid = self(),
 	AllPidInfo = [{OneKey, SelfPid} || OneKey <- Keys],
 	ets:insert(?EtsGLockPid, AllPidInfo),
@@ -69,17 +64,11 @@ lockApplys(Keys, MFAOrFun, TimeOut, LastTime) ->
 				ok
 			end;
 		_ ->
+			LTimeOut = ?CASE(TimeOut == infinity, TimeOut, max(0, TimeOut - max(erlang:system_time(microsecond) - FirstTime, 0))),
 			receive
 				?ReTryLockApply ->
-					case TimeOut of
-						infinity ->
-							lockApplys(Keys, MFAOrFun, TimeOut, LastTime);
-						_ ->
-							CurTime = erlang:system_time(microsecond),
-							NewTimeOut = max(0, TimeOut - max(CurTime - LastTime, 0)),
-							lockApplys(Keys, MFAOrFun, NewTimeOut, CurTime)
-					end
-			after TimeOut ->
+					lockApplys(Keys, MFAOrFun, TimeOut, FirstTime)
+			after LTimeOut ->
 				[ets:delete_object(?EtsGLockPid, OnePidInfo) || OnePidInfo <- AllPidInfo],
 				{error, {lock_timeout, Keys}}
 			end

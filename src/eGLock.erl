@@ -11,7 +11,7 @@
 lockApply(KeyOrKeys, MFAOrFun) ->
 	lockApply(KeyOrKeys, MFAOrFun, ?LockTimeOut).
 
--spec lockApply(KeyOrKeys :: tuple() |[tuple()], MFAOrFun :: {M :: atom(), F :: atom(), Args :: list()} | {Fun :: function(), Args :: list(), TimeOut :: integer() | infinity) -> term().
+-spec lockApply(KeyOrKeys :: tuple() |[tuple()], MFAOrFun :: {M :: atom(), F :: atom(), Args :: list()} | {Fun :: function(), Args :: list()}, TimeOut :: integer() | infinity) -> term().
 lockApply(KeyOrKeys, MFAOrFun, TimeOut) ->
 	case KeyOrKeys of
 		{_, _} ->

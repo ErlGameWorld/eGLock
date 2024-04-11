@@ -44,7 +44,7 @@ lockApply(Key, MFAOrFun, TimeOut, LastTime) ->
 							lockApply(Key, MFAOrFun, TimeOut, LastTime);
 						_ ->
 							CurTime = erlang:system_time(microsecond),
-							NewTimeOut = TimeOut - max(CurTime - LastTime, 0),
+							NewTimeOut = max(0, TimeOut - max(CurTime - LastTime, 0)),
 							lockApply(Key, MFAOrFun, NewTimeOut, CurTime)
 					end
 			after TimeOut ->
@@ -76,7 +76,7 @@ lockApplys(Keys, MFAOrFun, TimeOut, LastTime) ->
 							lockApplys(Keys, MFAOrFun, TimeOut, LastTime);
 						_ ->
 							CurTime = erlang:system_time(microsecond),
-							NewTimeOut = TimeOut - max(CurTime - LastTime, 0),
+							NewTimeOut = max(0, TimeOut - max(CurTime - LastTime, 0)),
 							lockApplys(Keys, MFAOrFun, NewTimeOut, CurTime)
 					end
 			after TimeOut ->

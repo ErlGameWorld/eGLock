@@ -13,6 +13,5 @@ start_link() ->
 
 init([]) ->
 	SupFlags = #{strategy => one_for_all, intensity => 0, period => 1},
-	ets:new(?EtsGLockKey, [named_table, set, public, {write_concurrency, true}]),
-	ets:new(?EtsGLockPid, [named_table, bag, public, {write_concurrency, auto}, {read_concurrency, true}]),
+	ets:new(?EtsGLockKey, [named_table, set, public, {write_concurrency, auto}, {read_concurrency, true}]),
 	{ok, {SupFlags, []}}.

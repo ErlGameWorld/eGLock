@@ -1,10 +1,7 @@
 %% 锁key
 -define(EtsGLockKey, '$EtsGLockKey').
-%% 锁等待pid
--define(EtsGLockPid, '$EtsGLockPid').
-
-%% 锁等待pid
--define(ReTryLockApply, '$ReTryLockApply').
-
-%% 默认超时时间
+%% 默认超时时间单位:Ms
 -define(LockTimeOut, 5000).
+
+%% 超时重试时间单位:Ms
+-define(ReTryTime, 10).

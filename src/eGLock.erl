@@ -15,9 +15,9 @@ lockApply(KeyOrKeys, MFAOrFun) ->
 lockApply(KeyOrKeys, MFAOrFun, TimeOut) ->
 	case KeyOrKeys of
 		{_, _} ->
-			lockApply(KeyOrKeys, MFAOrFun, TimeOut, erlang:system_time(microsecond));
+			lockApply(KeyOrKeys, MFAOrFun, TimeOut, erlang:system_time(millisecond));
 		_ ->
-			lockApplys(KeyOrKeys, MFAOrFun, TimeOut, erlang:system_time(microsecond))
+			lockApplys(KeyOrKeys, MFAOrFun, TimeOut, erlang:system_time(millisecond))
 	end.
 
 -define(CASE(Cond, Then, That), case Cond of true -> Then; _ -> That end).
@@ -38,7 +38,7 @@ lockApply(Key, MFAOrFun, TimeOut, FirstTime) ->
 				ok
 			end;
 		_ ->
-			LTimeOut = ?CASE(TimeOut == infinity, TimeOut, max(0, TimeOut - max(erlang:system_time(microsecond) - FirstTime, 0))),
+			LTimeOut = ?CASE(TimeOut == infinity, TimeOut, max(0, TimeOut - max(erlang:system_time(millisecond) - FirstTime, 0))),
 			receive
 				?ReTryLockApply ->
 					lockApply(Key, MFAOrFun, TimeOut, FirstTime)
@@ -64,7 +64,7 @@ lockApplys(Keys, MFAOrFun, TimeOut, FirstTime) ->
 				ok
 			end;
 		_ ->
-			LTimeOut = ?CASE(TimeOut == infinity, TimeOut, max(0, TimeOut - max(erlang:system_time(microsecond) - FirstTime, 0))),
+			LTimeOut = ?CASE(TimeOut == infinity, TimeOut, max(0, TimeOut - max(erlang:system_time(millisecond) - FirstTime, 0))),
 			receive
 				?ReTryLockApply ->
 					lockApplys(Keys, MFAOrFun, TimeOut, FirstTime)

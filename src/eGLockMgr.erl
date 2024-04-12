@@ -21,7 +21,7 @@ start_link() ->
 
 init([]) ->
 	process_flag(trap_exit, true),
-	ets:new(?EtsGLockKey, [named_table, set, public, {write_concurrency, true}, {read_concurrency, true}]),
+	ets:new(?EtsGLockKey, [named_table, set, public, {write_concurrency, auto}, {read_concurrency, true}]),
 	{ok, #state{}}.
 
 handle_call(_Request, _From, State) ->

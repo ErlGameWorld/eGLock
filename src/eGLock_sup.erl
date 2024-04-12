@@ -12,6 +12,15 @@ start_link() ->
 	supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 init([]) ->
-	SupFlags = #{strategy => one_for_all, intensity => 0, period => 1},
-	ets:new(?EtsGLockKey, [named_table, set, public, {write_concurrency, auto}, {read_concurrency, true}]),
-	{ok, {SupFlags, []}}.
+	SupFlags = #{strategy => one_for_all, intensity => 100, period => 3600},
+	ChildSpecs = [
+		#{
+			id => ?eGLockMgr,
+			start => {eGLockMgr, start_link, []},
+			restart => permanent,
+			shutdown => 3000,
+			type => worker,
+			modules => [eGLockMgr]
+		}
+	],
+	{ok, {SupFlags, ChildSpecs}}.

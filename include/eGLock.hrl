@@ -5,3 +5,5 @@
 
 %% 超时重试时间单位:Ms
 -define(ReTryTime, 10).
+
+-define(eGLockMgr, eGLockMgr).

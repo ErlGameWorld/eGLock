@@ -13,18 +13,20 @@ lockApply(KeyOrKeys, MFAOrFun) ->
 
 -spec lockApply(KeyOrKeys :: term() | [term()], MFAOrFun :: {M :: atom(), F :: atom(), Args :: list()} | {Fun :: function(), Args :: list()}, TimeOut :: integer() | infinity) -> term().
 lockApply(KeyOrKeys, MFAOrFun, TimeOut) ->
-	link(whereis(?eGLockMgr)),
+	GLockMgrPid = persistent_term:get(?eGLockMgr),
+	link(GLockMgrPid),
 	Pid = self(),
 	case is_list(KeyOrKeys) of
 		true ->
 			KeyPids = [{OneKey, Pid} || OneKey <- KeyOrKeys],
-			lockApplys(KeyPids, KeyOrKeys, MFAOrFun, TimeOut, erlang:system_time(millisecond));
+			[FirstKey | _] = KeyOrKeys,
+			lockApplys(KeyPids, KeyOrKeys, FirstKey, GLockMgrPid, MFAOrFun, TimeOut);
 		_ ->
-			lockApply({KeyOrKeys, Pid}, KeyOrKeys, MFAOrFun, TimeOut, erlang:system_time(millisecond))
+			lockApply({KeyOrKeys, Pid}, KeyOrKeys, GLockMgrPid, MFAOrFun, TimeOut)
 	end.
 
 -define(CASE(Cond, Then, That), case Cond of true -> Then; _ -> That end).
-lockApply(KeyPid, Key, MFAOrFun, TimeOut, FirstTime) ->
+lockApply(KeyPid, Key, GLockMgrPid, MFAOrFun, TimeOut) ->
 	case ets:insert_new(?EtsGLockKey, KeyPid) of
 		true ->
 			try doApply(MFAOrFun)
@@ -32,37 +34,32 @@ lockApply(KeyPid, Key, MFAOrFun, TimeOut, FirstTime) ->
 				{error, {lock_apply_error, {C, R, S}}}
 			after
 				ets:delete(?EtsGLockKey, Key),
-				unlink(whereis(?eGLockMgr)),
+				unlink(GLockMgrPid),
 				ok
 			end;
 		_ ->
-			loopTry(KeyPid, Key, MFAOrFun, TimeOut, FirstTime)
+			loopTry(KeyPid, Key, GLockMgrPid, MFAOrFun, TimeOut)
 	end.
 
-loopTry(KeyPid, Key, MFAOrFun, TimeOut, FirstTime) ->
+loopTry(KeyPid, Key, GLockMgrPid, MFAOrFun, TimeOut) ->
 	receive
 	after ?ReTryTime ->
-		case ets:lookup(?EtsGLockKey, Key) of
-			[] ->
-				lockApply(KeyPid, Key, MFAOrFun, TimeOut, FirstTime);
-			_ ->
-				case TimeOut of
-					infinity ->
-						loopTry(KeyPid, Key, MFAOrFun, TimeOut, FirstTime);
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime),
+		case LTimeOut >= 0 of
+			true ->
+				case ets:lookup(?EtsGLockKey, Key) of
+					[] ->
+						lockApply(KeyPid, Key, GLockMgrPid, MFAOrFun, LTimeOut);
 					_ ->
-						LTimeOut = TimeOut - abs(erlang:system_time(millisecond) - FirstTime),
-						case LTimeOut =< 0 of
-							true ->
-								unlink(whereis(?eGLockMgr)),
-								{error, {lock_timeout, Key}};
-							_ ->
-								loopTry(KeyPid, Key, MFAOrFun, TimeOut, FirstTime)
-						end
-				end
+						loopTry(KeyPid, Key, GLockMgrPid, MFAOrFun, LTimeOut)
+				end;
+			_ ->
+				unlink(GLockMgrPid),
+				{error, {lock_timeout, Key}}
 		end
 	end.
 
-lockApplys(KeyPids, Keys, MFAOrFun, TimeOut, FirstTime) ->
+lockApplys(KeyPids, Keys, FirstKey, GLockMgrPid, MFAOrFun, TimeOut) ->
 	case ets:insert_new(?EtsGLockKey, KeyPids) of
 		true ->
 			try doApply(MFAOrFun)
@@ -70,34 +67,28 @@ lockApplys(KeyPids, Keys, MFAOrFun, TimeOut, FirstTime) ->
 				{error, {lock_apply_error, {C, R, S}}}
 			after
 				[ets:delete(?EtsGLockKey, OneKey) || OneKey <- Keys],
-				unlink(whereis(?eGLockMgr)),
+				unlink(GLockMgrPid),
 				ok
 			end;
 		_ ->
-			loopTrys(KeyPids, Keys, MFAOrFun, TimeOut, FirstTime)
+			loopTrys(KeyPids, Keys, FirstKey, GLockMgrPid, MFAOrFun, TimeOut)
 	end.
 
-loopTrys(KeyPids, Keys, MFAOrFun, TimeOut, FirstTime) ->
+loopTrys(KeyPids, Keys, FirstKey, GLockMgrPid, MFAOrFun, TimeOut) ->
 	receive
 	after ?ReTryTime ->
-		[Key | _] = Keys,
-		case ets:lookup(?EtsGLockKey, Key) of
-			[] ->
-				lockApplys(KeyPids, Keys, MFAOrFun, TimeOut, FirstTime);
-			_ ->
-				case TimeOut of
-					infinity ->
-						loopTrys(KeyPids, Keys, MFAOrFun, TimeOut, FirstTime);
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime),
+		case LTimeOut >= 0 of
+			true ->
+				case ets:lookup(?EtsGLockKey, FirstKey) of
+					[] ->
+						lockApplys(KeyPids, Keys, FirstKey, GLockMgrPid, MFAOrFun, LTimeOut);
 					_ ->
-						LTimeOut = TimeOut - abs(erlang:system_time(millisecond) - FirstTime),
-						case LTimeOut =< 0 of
-							true ->
-								unlink(whereis(?eGLockMgr)),
-								{error, {lock_timeout, Keys}};
-							_ ->
-								loopTrys(KeyPids, Keys, MFAOrFun, TimeOut, FirstTime)
-						end
-				end
+						loopTrys(KeyPids, Keys, FirstKey, GLockMgrPid, MFAOrFun, LTimeOut)
+				end;
+			_ ->
+				unlink(GLockMgrPid),
+				{error, {lock_timeout, Keys}}
 		end
 	end.
 

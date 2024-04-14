@@ -1,6 +1,7 @@
--module(eGLock).
+-module(eELock).
 
 -include("eGLock.hrl").
+-define(CASE(Cond, Then, That), case Cond of true -> Then; _ -> That end).
 
 -export([
 	lockApply/2
@@ -13,7 +14,7 @@ lockApply(KeyOrKeys, MFAOrFun) ->
 
 -spec lockApply(KeyOrKeys :: term() | [term()], MFAOrFun :: {M :: atom(), F :: atom(), Args :: list()} | {Fun :: function(), Args :: list()}, TimeOut :: integer() | infinity) -> term().
 lockApply(KeyOrKeys, MFAOrFun, TimeOut) ->
-	GLockMgrPid = persistent_term:get(?eGLockMgr),
+	GLockMgrPid = persistent_term:get(?eELockMgr),
 	link(GLockMgrPid),
 	Pid = self(),
 	case is_list(KeyOrKeys) of
@@ -25,7 +26,6 @@ lockApply(KeyOrKeys, MFAOrFun, TimeOut) ->
 			lockApply({KeyOrKeys, Pid}, KeyOrKeys, GLockMgrPid, MFAOrFun, TimeOut)
 	end.
 
--define(CASE(Cond, Then, That), case Cond of true -> Then; _ -> That end).
 lockApply(KeyPid, Key, GLockMgrPid, MFAOrFun, TimeOut) ->
 	case ets:insert_new(?EtsGLockKey, KeyPid) of
 		true ->

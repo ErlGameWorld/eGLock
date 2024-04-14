@@ -1,4 +1,4 @@
--module(eGLockMgr).
+-module(eELockMgr).
 
 -behaviour(gen_server).
 
@@ -17,12 +17,12 @@
 %%%===================================================================
 
 start_link() ->
-	gen_server:start_link({local, ?eGLockMgr}, ?MODULE, [], []).
+	gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 init([]) ->
 	process_flag(trap_exit, true),
+	persistent_term:put(?eELockMgr, self()),
 	ets:new(?EtsGLockKey, [named_table, set, public, {write_concurrency, auto}, {read_concurrency, true}]),
-	persistent_term:put(?eGLockMgr, self()),
 	{ok, #state{}}.
 
 handle_call(_Request, _From, State) ->

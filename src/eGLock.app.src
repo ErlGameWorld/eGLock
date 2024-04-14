@@ -1,11 +1,11 @@
 {application, eGLock,
- [{description, "An OTP application"},
-  {vsn, "0.1.0"},
-  {registered, []},
-  {mod, {eGLock_app, []}},
-  {applications, [kernel, stdlib]},
-  {env,[]},
-  {modules, []},
-  {licenses, ["MIT License"]},
-  {links, []}
- ]}.
+	[{description, "An OTP application"},
+		{vsn, "0.1.0"},
+		{registered, []},
+		{mod, {eGLock_app, []}},
+		{applications, [kernel, stdlib]},
+		{env, []},
+		{modules, []},
+		{licenses, ["MIT License"]},
+		{links, []}
+	]}.

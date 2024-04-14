@@ -15,12 +15,20 @@ init([]) ->
 	SupFlags = #{strategy => one_for_all, intensity => 100, period => 3600},
 	ChildSpecs = [
 		#{
-			id => ?eGLockMgr,
-			start => {eGLockMgr, start_link, []},
+			id => ?eELockMgr,
+			start => {eELockMgr, start_link, []},
 			restart => permanent,
 			shutdown => 3000,
 			type => worker,
-			modules => [eGLockMgr]
+			modules => [eELockMgr]
+		},
+		#{
+			id => eALockMgr,
+			start => {eALockMgr, start_link, []},
+			restart => permanent,
+			shutdown => 3000,
+			type => worker,
+			modules => [eALockMgr]
 		}
 	],
 	{ok, {SupFlags, ChildSpecs}}.

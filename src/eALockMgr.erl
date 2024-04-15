@@ -23,8 +23,6 @@ init([]) ->
 	process_flag(trap_exit, true),
 	ATLockRef = atomics:new(?eALockSize, [{signed, false}]),
 	persistent_term:put(?eALockRef, ATLockRef),
-	persistent_term:put(?eALockMgr, self()),
-	ets:new(?EtsGLockPid, [named_table, set, public, {write_concurrency, auto}]),
 	{ok, #state{}}.
 
 handle_call(_Request, _From, State) ->
@@ -33,21 +31,6 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Request, State) ->
 	{noreply, State}.
 
-handle_info({'EXIT', Pid, _Reason}, State) ->
-	case ets:take(?EtsGLockPid, Pid) of
-		[] -> ignore;
-		[{_Pid, KeyIxOrKeyIxs}] ->
-			ALockRef = persistent_term:get(?eALockRef),
-			PidInt = termInt:termInt(Pid),
-			case is_integer(KeyIxOrKeyIxs) of
-				true ->
-					atomics:compare_exchange(ALockRef, KeyIxOrKeyIxs, PidInt, 0);
-				_ ->
-					[atomics:compare_exchange(ALockRef, KeyIx, PidInt, 0) || KeyIx <- KeyIxOrKeyIxs],
-					ok
-			end
-	end,
-	{noreply, State};
 handle_info(_Info, State) ->
 	{noreply, State}.
 

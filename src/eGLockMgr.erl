@@ -1,4 +1,4 @@
--module(eALockMgr).
+-module(eGLockMgr).
 
 -behaviour(gen_server).
 
@@ -21,8 +21,8 @@ start_link() ->
 
 init([]) ->
 	process_flag(trap_exit, true),
-	ATLockRef = atomics:new(?eALockSize, [{signed, false}]),
-	persistent_term:put(?eALockRef, ATLockRef),
+	ATLockRef = atomics:new(?eGLockSize, [{signed, false}]),
+	persistent_term:put(?eGLockRef, ATLockRef),
 	{ok, #state{}}.
 
 handle_call(_Request, _From, State) ->

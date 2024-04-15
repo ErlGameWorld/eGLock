@@ -12,5 +12,3 @@ Build
 ----
 
     eALock 基于atmoics 
-    eELock 基于Ets表
-    eALock 更优

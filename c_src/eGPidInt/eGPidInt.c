@@ -1,5 +1,4 @@
 #include "erl_nif.h"
-#include <stdio.h>
 
 static ERL_NIF_TERM pidToInt(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     ErlNifUInt64 TermInt = (ErlNifUInt64)argv[0];
@@ -10,8 +9,7 @@ static ERL_NIF_TERM intToPid(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]
     ErlNifUInt64 Pid;
     if (!enif_get_uint64(env, argv[0], &Pid))
         return enif_make_badarg(env);
-    ERL_NIF_TERM TermPid = (ERL_NIF_TERM)Pid;
-    return TermPid;
+    return (ERL_NIF_TERM)Pid;
 }
 
 static ErlNifFunc nif_funcs[] = {

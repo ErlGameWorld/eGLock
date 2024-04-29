@@ -21,5 +21,5 @@ Build
     catch C:R:S ->
         %% do error
     after 
-        :releaseLock(KeyOrKeys)
+        eGLock:releaseLock(KeyOrKeys)
     end.

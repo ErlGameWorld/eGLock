@@ -11,4 +11,5 @@ Build
 说明
 ----
 
-    eALock 基于atmoics 
+    eGLock 基于c++11 atomic  
+    其中要锁的key 不能是列表的字符串 原因是锁表的key会判断是否为list来区分是锁单key 还是锁列表

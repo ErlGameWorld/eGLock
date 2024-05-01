@@ -2,7 +2,9 @@
 
 -export([
 	tryLock/1
+	, tryLocks/1
 	, releaseLock/1
+	, releaseLocks/1
 	, getLockPid/1
 ]).
 
@@ -23,14 +25,22 @@ init() ->
 		end,
 	erlang:load_nif(SoName, 0).
 
--spec tryLock(_KeyOrKeys :: term() | [term()]) -> true | false.
-tryLock(_KeyOrKeys) ->
+-spec tryLock(KeyIx :: non_neg_integer()) -> true | false.
+tryLock(_KeyIx) ->
 	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
--spec releaseLock(_KeyOrKeys :: term() | [term()]) -> true | false.
-releaseLock(_KeyOrKeys) ->
+-spec tryLocks(KeyIxs :: [non_neg_integer()]) -> true | false.
+tryLocks(_KeyIxs) ->
 	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
--spec getLockPid(OneKey :: term()) -> pid() | undefined.
-getLockPid(_OneKey) ->
+-spec releaseLock(KeyIx :: non_neg_integer()) -> true | false.
+releaseLock(_KeyIx) ->
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+
+-spec releaseLocks(KeyIxs :: [non_neg_integer()]) -> true | false.
+releaseLocks(_KeyIxs) ->
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+
+-spec getLockPid(KeyIx :: non_neg_integer()) -> pid() | undefined.
+getLockPid(_KeyIx) ->
 	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line1, ?LINE}]}).

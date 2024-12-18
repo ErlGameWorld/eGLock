@@ -4,7 +4,6 @@
 using namespace std;
 
 const int LockSize = 2097152;
-const int HashSalt = 786234121;
 atomic<uint64_t> LockSlot[LockSize];
 
 ERL_NIF_TERM atomTrue;

@@ -6,7 +6,7 @@
 %% 默认超时时间单位:Ms
 -define(LockTimeOut, 5000).
 %% 超时重试时间单位:Ms
--define(ReTryTime, 3).
+-define(ReTryTime, 1).
 %% 数组数量
 -define(eGLockSize, 2097152).
 %% 没有ets 表的key

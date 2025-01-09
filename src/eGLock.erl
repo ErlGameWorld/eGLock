@@ -5,8 +5,15 @@
 
 %% 默认超时时间单位:Ms
 -define(LockTimeOut, 5000).
-%% 超时重试时间单位:Ms
--define(ReTryTime, 1).
+%% 第一次超时重试时间单位:Ms
+-define(ReTryTime1, 1).
+%% 第二次超时重试时间单位:Ms
+-define(ReTryTime2, 2).
+%% 第三次超时重试时间单位:Ms
+-define(ReTryTime3, 4).
+%% 最后每次超时重试时间单位:Ms
+-define(ReTryTimeL, 6).
+
 %% 数组数量
 -define(eGLockSize, 2097152).
 %% 没有ets 表的key
@@ -46,20 +53,71 @@ doTryLock(KeyIx, TimeOut) ->
 		true ->
 			true;
 		_ ->
-			loopLock(KeyIx, TimeOut)
+			loopLock1(KeyIx, TimeOut)
 	end.
 
-loopLock(KeyIx, TimeOut) ->
+loopLock1(KeyIx, TimeOut) ->
 	receive
-	after ?ReTryTime ->
-		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime),
+	after ?ReTryTime1 ->
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime1),
 		case LTimeOut >= 0 of
 			true ->
 				case eNifLock:tryLock(KeyIx) of
 					true ->
 						true;
 					_ ->
-						loopLock(KeyIx, LTimeOut)
+						loopLock2(KeyIx, LTimeOut)
+				end;
+			_ ->
+				lockTimeout
+		end
+	end.
+
+loopLock2(KeyIx, TimeOut) ->
+	receive
+	after ?ReTryTime2 ->
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime2),
+		case LTimeOut >= 0 of
+			true ->
+				case eNifLock:tryLock(KeyIx) of
+					true ->
+						true;
+					_ ->
+						loopLock3(KeyIx, LTimeOut)
+				end;
+			_ ->
+				lockTimeout
+		end
+	end.
+
+loopLock3(KeyIx, TimeOut) ->
+	receive
+	after ?ReTryTime3 ->
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime3),
+		case LTimeOut >= 0 of
+			true ->
+				case eNifLock:tryLock(KeyIx) of
+					true ->
+						true;
+					_ ->
+						loopLockL(KeyIx, LTimeOut)
+				end;
+			_ ->
+				lockTimeout
+		end
+	end.
+
+loopLockL(KeyIx, TimeOut) ->
+	receive
+	after ?ReTryTimeL ->
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTimeL),
+		case LTimeOut >= 0 of
+			true ->
+				case eNifLock:tryLock(KeyIx) of
+					true ->
+						true;
+					_ ->
+						loopLockL(KeyIx, LTimeOut)
 				end;
 			_ ->
 				lockTimeout
@@ -71,20 +129,71 @@ doTryLocks(KeyIxs, TimeOut) ->
 		true ->
 			true;
 		_ ->
-			loopLocks(KeyIxs, TimeOut)
+			loopLocks1(KeyIxs, TimeOut)
 	end.
 
-loopLocks(KeyIxs, TimeOut) ->
+loopLocks1(KeyIxs, TimeOut) ->
 	receive
-	after ?ReTryTime ->
-		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime),
+	after ?ReTryTime1 ->
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime1),
 		case LTimeOut >= 0 of
 			true ->
 				case eNifLock:tryLocks(KeyIxs) of
 					true ->
 						true;
 					_ ->
-						loopLocks(KeyIxs, LTimeOut)
+						loopLocks2(KeyIxs, LTimeOut)
+				end;
+			_ ->
+				lockTimeout
+		end
+	end.
+
+loopLocks2(KeyIxs, TimeOut) ->
+	receive
+	after ?ReTryTime2 ->
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime2),
+		case LTimeOut >= 0 of
+			true ->
+				case eNifLock:tryLocks(KeyIxs) of
+					true ->
+						true;
+					_ ->
+						loopLocks3(KeyIxs, LTimeOut)
+				end;
+			_ ->
+				lockTimeout
+		end
+	end.
+
+loopLocks3(KeyIxs, TimeOut) ->
+	receive
+	after ?ReTryTime3 ->
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTime3),
+		case LTimeOut >= 0 of
+			true ->
+				case eNifLock:tryLocks(KeyIxs) of
+					true ->
+						true;
+					_ ->
+						loopLocksL(KeyIxs, LTimeOut)
+				end;
+			_ ->
+				lockTimeout
+		end
+	end.
+
+loopLocksL(KeyIxs, TimeOut) ->
+	receive
+	after ?ReTryTimeL ->
+		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTimeL),
+		case LTimeOut >= 0 of
+			true ->
+				case eNifLock:tryLocks(KeyIxs) of
+					true ->
+						true;
+					_ ->
+						loopLocksL(KeyIxs, LTimeOut)
 				end;
 			_ ->
 				lockTimeout

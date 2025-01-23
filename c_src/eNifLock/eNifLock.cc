@@ -1,6 +1,6 @@
 #include "erl_nif.h"
 #include <atomic>
-#include <set>
+
 using namespace std;
 
 const int LockSize = 2097152;

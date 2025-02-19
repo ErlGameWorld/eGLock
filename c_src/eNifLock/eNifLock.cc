@@ -10,14 +10,14 @@ ERL_NIF_TERM atomTrue;
 ERL_NIF_TERM atomFalse;
 ERL_NIF_TERM atomUndefined;
 
-int nifLoad(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM){
+int nifLoad(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info){
     atomTrue = enif_make_atom(env, "true");
     atomFalse = enif_make_atom(env, "false");
     atomUndefined = enif_make_atom(env, "undefined");
     return 0;
 }
 
-bool lockOne(ErlNifEnv *env, ErlNifPid *ThePid, int KeyIx, uint64_t Val){
+inline bool lockOne(ErlNifEnv *env, ErlNifPid *ThePid, int KeyIx, uint64_t Val){
     uint64_t Expected = 0;
     if (LockSlot[KeyIx].compare_exchange_strong(Expected, Val)){
         return true;
@@ -26,30 +26,22 @@ bool lockOne(ErlNifEnv *env, ErlNifPid *ThePid, int KeyIx, uint64_t Val){
         if (enif_is_process_alive(env, ThePid)){
             return false;
         }else{
-            if (LockSlot[KeyIx].compare_exchange_strong(Expected, Val)){
-                return true;
-            }else{
-                return false;
-            }
+            return LockSlot[KeyIx].compare_exchange_strong(Expected, Val);
         }
     }
 }
 
-ERL_NIF_TERM tryLock(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]){
+ERL_NIF_TERM tryLock(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
     int KeyIx;
     enif_get_int(env, argv[0], &KeyIx);
     ErlNifPid ThePid;
     enif_self(env, &ThePid);
     uint64_t Val = (uint64_t)(ThePid.pid);
 
-    if (lockOne(env, &ThePid, KeyIx, Val)){
-        return atomTrue;
-    }else{
-        return atomFalse;
-    }
+    return lockOne(env, &ThePid, KeyIx, Val) ? atomTrue : atomFalse;
 }
 
-ERL_NIF_TERM tryLocks(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]){
+ERL_NIF_TERM tryLocks(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
     ERL_NIF_TERM allList = argv[0];
     ERL_NIF_TERM head;
     ErlNifPid ThePid;
@@ -75,21 +67,17 @@ ERL_NIF_TERM tryLocks(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]){
     return atomTrue;
 }
 
-ERL_NIF_TERM releaseLock(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]){
+ERL_NIF_TERM releaseLock(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
     int KeyIx;
     enif_get_int(env, argv[0], &KeyIx);
     ErlNifPid ThePid;
     enif_self(env, &ThePid);
     uint64_t Expected = (uint64_t)(ThePid.pid);
 
-    if (LockSlot[KeyIx].compare_exchange_strong(Expected, 0)){
-        return atomTrue;
-    }else{
-        return atomFalse;
-    }
+    return LockSlot[KeyIx].compare_exchange_strong(Expected, 0) ? atomTrue : atomFalse;
 }
 
-ERL_NIF_TERM releaseLocks(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]){
+ERL_NIF_TERM releaseLocks(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
     ERL_NIF_TERM allList = argv[0];
     ERL_NIF_TERM head;
     ErlNifPid ThePid;
@@ -109,7 +97,7 @@ ERL_NIF_TERM releaseLocks(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]){
     return isAllOk > 0 ? atomTrue : atomFalse;
 }
 
-ERL_NIF_TERM getLockPid(ErlNifEnv *env, int, const ERL_NIF_TERM argv[]){
+ERL_NIF_TERM getLockPid(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]){
     int KeyIx;
     enif_get_int(env, argv[0], &KeyIx);
     ErlNifPid ThePid;

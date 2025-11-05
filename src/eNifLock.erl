@@ -43,4 +43,4 @@ releaseLocks(_KeyIxs) ->
 
 -spec getLockPid(KeyIx :: non_neg_integer()) -> pid() | undefined.
 getLockPid(_KeyIx) ->
-	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line1, ?LINE}]}).
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).

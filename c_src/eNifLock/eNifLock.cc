@@ -24,6 +24,15 @@ inline bool lockOne(ErlNifEnv *env, ErlNifPid *ThePid, int KeyIx, ERL_NIF_TERM V
     if (LockSlot[KeyIx].compare_exchange_strong(Expected, Val, std::memory_order_acquire, std::memory_order_relaxed)) {
         return true;
     } else {
+        return false;
+    }
+}
+
+inline bool lockOne_ca(ErlNifEnv *env, ErlNifPid *ThePid, int KeyIx, ERL_NIF_TERM Val) {
+    ERL_NIF_TERM Expected = 0;
+    if (LockSlot[KeyIx].compare_exchange_strong(Expected, Val, std::memory_order_acquire, std::memory_order_relaxed)) {
+        return true;
+    } else {
         ThePid->pid = Expected;
         if (enif_is_process_alive(env, ThePid)) {
             return false;
@@ -39,8 +48,16 @@ ERL_NIF_TERM tryLock(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     ErlNifPid ThePid;
     enif_self(env, &ThePid);
     ERL_NIF_TERM Val = ThePid.pid;
-
     return lockOne(env, &ThePid, KeyIx, Val) ? atomTrue : atomFalse;
+}
+
+ERL_NIF_TERM tryLock_ca(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    int KeyIx;
+    enif_get_int(env, argv[0], &KeyIx);
+    ErlNifPid ThePid;
+    enif_self(env, &ThePid);
+    ERL_NIF_TERM Val = ThePid.pid;
+    return lockOne_ca(env, &ThePid, KeyIx, Val) ? atomTrue : atomFalse;
 }
 
 ERL_NIF_TERM tryLocks(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
@@ -55,6 +72,34 @@ ERL_NIF_TERM tryLocks(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     while (enif_get_list_cell(env, allList, &head, &allList)) {
         enif_get_int(env, head, &KeyIx);
         if (lockOne(env, &ThePid, KeyIx, Val)) {
+            cnt++;
+        } else {
+            allList = argv[0];
+            ERL_NIF_TERM Expected;
+            for (int i = 0; i <= cnt; i++) {
+                enif_get_list_cell(env, allList, &head, &allList);
+                enif_get_int(env, head, &KeyIx);
+                Expected = Val;
+                LockSlot[KeyIx].compare_exchange_strong(Expected, 0, std::memory_order_release, std::memory_order_relaxed);
+            }
+            return atomFalse;
+        }
+    }
+    return atomTrue;
+}
+
+ERL_NIF_TERM tryLocks_ca(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    ERL_NIF_TERM allList = argv[0];
+    ERL_NIF_TERM head;
+    ErlNifPid ThePid;
+    enif_self(env, &ThePid);
+    const ERL_NIF_TERM Val = ThePid.pid;
+    int KeyIx;
+    int cnt = -1;
+
+    while (enif_get_list_cell(env, allList, &head, &allList)) {
+        enif_get_int(env, head, &KeyIx);
+        if (lockOne_ca(env, &ThePid, KeyIx, Val)) {
             cnt++;
         } else {
             allList = argv[0];
@@ -117,6 +162,8 @@ ERL_NIF_TERM getLockPid(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 static ErlNifFunc nifFuncs[] = {
     {"tryLock", 1, tryLock},
     {"tryLocks", 1, tryLocks},
+    {"tryLock_ca", 1, tryLock_ca},
+    {"tryLocks_ca", 1, tryLocks_ca},
     {"releaseLock", 1, releaseLock},
     {"releaseLocks", 1, releaseLocks},
     {"getLockPid", 1, getLockPid}

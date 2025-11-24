@@ -1,5 +1,8 @@
 -module(eGLock).
 
+-compile(inline).
+-compile({inline_size, 128}).
+
 -define(CASE(Cond, Then, That), case Cond of true -> Then; _ -> That end).
 -define(CASE(Expr, Expect, Then, ExprRet, That), case Expr of Expect -> Then; ExprRet -> That end).
 
@@ -26,7 +29,7 @@
 	, getLockPid/1
 	, lockApply/2
 	, lockApply/3
-
+	
 	, lockGet/1
 	, lockGet/2
 	, transaction/2
@@ -111,7 +114,7 @@ loopLockL(KeyIx, TimeOut) ->
 		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTimeL),
 		case LTimeOut >= 0 of
 			true ->
-				case eNifLock:tryLock(KeyIx) of
+				case eNifLock:tryLock_ca(KeyIx) of
 					true ->
 						true;
 					_ ->
@@ -187,7 +190,7 @@ loopLocksL(KeyIxs, TimeOut) ->
 		LTimeOut = ?CASE(TimeOut == infinity, TimeOut, TimeOut - ?ReTryTimeL),
 		case LTimeOut >= 0 of
 			true ->
-				case eNifLock:tryLocks(KeyIxs) of
+				case eNifLock:tryLocks_ca(KeyIxs) of
 					true ->
 						true;
 					_ ->
@@ -268,17 +271,17 @@ doApply({M, F, Args}) ->
 doApply({Fun, Args}) ->
 	apply(Fun, Args).
 
--spec lockGet(KeyOrKeys :: term() | [term()]) -> map().
+-spec lockGet(KeyOrKeys :: term() | [term()]) -> list().
 lockGet(KeyOrKeys) ->
 	lockGet(KeyOrKeys, ?LockTimeOut).
 
--spec lockGet(KeyOrKeys :: term() | [term()], TimeOut :: integer() | infinity) -> map().
+-spec lockGet(KeyOrKeys :: term() | [term()], TimeOut :: integer() | infinity) -> list().
 lockGet({?noneTab, JustKey} = GetKey, TimeOut) ->
 	KeyIx = erlang:phash2(JustKey, ?eGLockSize),
 	case doTryLock(KeyIx, TimeOut) of
 		true ->
 			try
-				#{GetKey => undefined}
+				[{GetKey, getEtsTabValue(?noneTab, JustKey, undefined)}]
 			catch C:R:S ->
 				error({lockGetError, GetKey, {C, R, S}})
 			after
@@ -293,7 +296,7 @@ lockGet({EtsTab, Key} = GetKey, TimeOut) ->
 	case doTryLock(KeyIx, TimeOut) of
 		true ->
 			try
-				#{GetKey => getEtsTabValue(EtsTab, Key, undefined)}
+				[{GetKey, getEtsTabValue(EtsTab, Key, undefined)}]
 			catch C:R:S ->
 				error({lockGetError, GetKey, {C, R, S}})
 			after
@@ -309,7 +312,7 @@ lockGet({?noneTab, JustKey, DefValue} = Args, TimeOut) ->
 	case doTryLock(KeyIx, TimeOut) of
 		true ->
 			try
-				#{GetKey => getDefValue(DefValue)}
+				[{GetKey, getEtsTabValue(?noneTab, JustKey, DefValue)}]
 			catch C:R:S ->
 				error({lockGetError, Args, {C, R, S}})
 			after
@@ -325,7 +328,7 @@ lockGet({EtsTab, Key, DefValue} = Args, TimeOut) ->
 	case doTryLock(KeyIx, TimeOut) of
 		true ->
 			try
-				#{GetKey => getEtsTabValue(EtsTab, Key, DefValue)}
+				[{GetKey, getEtsTabValue(EtsTab, Key, DefValue)}]
 			catch C:R:S ->
 				error({lockGetError, Args, {C, R, S}})
 			after
@@ -336,11 +339,24 @@ lockGet({EtsTab, Key, DefValue} = Args, TimeOut) ->
 			error({lockTimeout, Args})
 	end;
 lockGet(EtsTabKeys, TimeOut) ->
-	{KeyIxs, KeysMap} = getKeyIxAndMaps(EtsTabKeys, [], #{}),
+	KeyIxs = getKeyIxAndMaps(EtsTabKeys, []),
 	case doTryLocks(KeyIxs, TimeOut) of
 		true ->
 			try
-				#{OneGetKey => getEtsTabValue(OneEtsTab, OneKey, OneDefValue) || {OneEtsTab, OneKey} = OneGetKey := OneDefValue <- KeysMap}
+				[
+					begin
+						case OneGKey of
+							{?noneTab, JustKey} ->
+								{OneGKey, getEtsTabValue(?noneTab, JustKey, undefined)};
+							{?noneTab, JustKey, DefValue} ->
+								{{?noneTab, JustKey}, getEtsTabValue(?noneTab, JustKey, DefValue)};
+							{EtsTab, TabKey} ->
+								{OneGKey, getEtsTabValue(EtsTab, TabKey, undefined)};
+							{EtsTab, TabKey, DefValue} ->
+								{{EtsTab, TabKey}, getEtsTabValue(EtsTab, TabKey, DefValue)}
+						end
+					end || OneGKey <- EtsTabKeys
+				]
 			catch C:R:S ->
 				error({lockGetError, EtsTabKeys, {C, R, S}})
 			after
@@ -354,50 +370,33 @@ lockGet(EtsTabKeys, TimeOut) ->
 getKeyIxAndMap(Key) ->
 	case Key of
 		{?noneTab, JustKey} ->
-			GetKey = Key,
-			LDefValue = undefined,
-			KeyIx = erlang:phash2(JustKey, ?eGLockSize);
-		{?noneTab, JustKey, DefValue} ->
-			GetKey = {?noneTab, JustKey},
-			LDefValue = DefValue,
-			KeyIx = erlang:phash2(JustKey, ?eGLockSize);
+			erlang:phash2(JustKey, ?eGLockSize);
+		{?noneTab, JustKey, _DefValue} ->
+			erlang:phash2(JustKey, ?eGLockSize);
 		{EtsTab, TabKey} ->
-			GetKey = Key,
-			LDefValue = undefined,
-			KeyIx = erlang:phash2(Key, ?eGLockSize);
-		{EtsTab, TabKey, DefValue} ->
-			GetKey = {EtsTab, TabKey},
-			LDefValue = DefValue,
-			KeyIx = erlang:phash2(Key, ?eGLockSize)
-	end,
-	{KeyIx, #{GetKey => LDefValue}}.
+			erlang:phash2(Key, ?eGLockSize);
+		{EtsTab, TabKey, _DefValue} ->
+			erlang:phash2({EtsTab, TabKey}, ?eGLockSize)
+	end.
 
-getKeyIxAndMaps([], IxAcc, KeysMap) -> {IxAcc, KeysMap};
-getKeyIxAndMaps([Key | Keys], IxAcc, KeysMap) ->
+getKeyIxAndMaps([], IxAcc) -> IxAcc;
+getKeyIxAndMaps([Key | Keys], IxAcc) ->
 	case Key of
 		{?noneTab, JustKey} ->
-			GetKey = Key,
-			LDefValue = undefined,
 			KeyIx = erlang:phash2(JustKey, ?eGLockSize);
-		{?noneTab, JustKey, DefValue} ->
-			GetKey = {?noneTab, JustKey},
-			LDefValue = DefValue,
+		{?noneTab, JustKey, _DefValue} ->
 			KeyIx = erlang:phash2(JustKey, ?eGLockSize);
 		{EtsTab, TabKey} ->
-			GetKey = Key,
-			LDefValue = undefined,
 			KeyIx = erlang:phash2(Key, ?eGLockSize);
-		{EtsTab, TabKey, DefValue} ->
-			GetKey = {EtsTab, TabKey},
-			LDefValue = DefValue,
-			KeyIx = erlang:phash2(Key, ?eGLockSize)
+		{EtsTab, TabKey, _DefValue} ->
+			KeyIx = erlang:phash2({EtsTab, TabKey}, ?eGLockSize)
 	end,
-	getKeyIxAndMaps(Keys, ?CASE(lists:member(KeyIx, IxAcc), IxAcc, [KeyIx | IxAcc]), KeysMap#{GetKey => LDefValue}).
+	getKeyIxAndMaps(Keys, ?CASE(lists:member(KeyIx, IxAcc), IxAcc, [KeyIx | IxAcc])).
 
 transactionApply({M, F, Args}, EtsTabValue) ->
-	apply(M, F, [EtsTabValue | Args]);
+	M:F(Args, EtsTabValue);
 transactionApply({Fun, Args}, EtsTabValue) ->
-	apply(Fun, [EtsTabValue | Args]).
+	Fun(Args, EtsTabValue).
 
 -spec transaction(KeyOrKeys :: term() | [term()], MFAOrFun :: {M :: atom(), F :: atom(), Args :: list()} | {Fun :: function(), Args :: list()}) -> term().
 transaction(EtsTabKeys, MFAOrFun) ->
@@ -408,17 +407,31 @@ transaction(EtsTabKeys, MFAOrFun) ->
 transaction(EtsTabKeys, MFAOrFun, TimeOut) ->
 	case is_list(EtsTabKeys) of
 		true ->
-			{KeyIxs, KeysMap} = getKeyIxAndMaps(EtsTabKeys, [], #{}),
+			KeyIxs = getKeyIxAndMaps(EtsTabKeys, []),
 			case doTryLocks(KeyIxs, TimeOut) of
 				true ->
 					try
-						EtsTabValue = #{OneGetKey => getEtsTabValue(OneEtsTab, OneKey, OneDefValue) || {OneEtsTab, OneKey} = OneGetKey := OneDefValue <- KeysMap},
+						EtsTabValue =
+							[
+								begin
+									case OneGKey of
+										{?noneTab, JustKey} ->
+											{OneGKey, getEtsTabValue(?noneTab, JustKey, undefined)};
+										{?noneTab, JustKey, DefValue} ->
+											{{?noneTab, JustKey}, getEtsTabValue(?noneTab, JustKey, DefValue)};
+										{EtsTab, TabKey} ->
+											{OneGKey, getEtsTabValue(EtsTab, TabKey, undefined)};
+										{EtsTab, TabKey, DefValue} ->
+											{{EtsTab, TabKey}, getEtsTabValue(EtsTab, TabKey, DefValue)}
+									end
+								end || OneGKey <- EtsTabKeys
+							],
 						case transactionApply(MFAOrFun, EtsTabValue) of
 							{alterTab, AlterTab} ->
-								[changeEtsTabValue(OneEtsTab, OneKey, ChangeValue) || {OneEtsTab, OneKey} := ChangeValue <- AlterTab],
+								[changeEtsTabValue(OneEtsTab, OneKey, ChangeValue) || {{OneEtsTab, OneKey}, ChangeValue} <- AlterTab],
 								ok;
 							{alterTab, Ret, AlterTab} ->
-								[changeEtsTabValue(OneEtsTab, OneKey, ChangeValue) || {OneEtsTab, OneKey} := ChangeValue <- AlterTab],
+								[changeEtsTabValue(OneEtsTab, OneKey, ChangeValue) || {{OneEtsTab, OneKey}, ChangeValue} <- AlterTab],
 								Ret;
 							OtherRet ->
 								OtherRet
@@ -435,17 +448,28 @@ transaction(EtsTabKeys, MFAOrFun, TimeOut) ->
 					error({lockTimeout, EtsTabKeys, MFAOrFun})
 			end;
 		_ ->
-			{KeyIx, KeysMap} = getKeyIxAndMap(EtsTabKeys),
+			KeyIx = getKeyIxAndMap(EtsTabKeys),
 			case doTryLock(KeyIx, TimeOut) of
 				true ->
 					try
-						EtsTabValue = #{OneGetKey => getEtsTabValue(OneEtsTab, OneKey, OneDefValue) || {OneEtsTab, OneKey} = OneGetKey := OneDefValue <- KeysMap},
+						TEtsTabValue =
+							case EtsTabKeys of
+								{?noneTab, JustKey} ->
+									{EtsTabKeys, getEtsTabValue(?noneTab, JustKey, undefined)};
+								{?noneTab, JustKey, DefValue} ->
+									{{?noneTab, JustKey}, getEtsTabValue(?noneTab, JustKey, DefValue)};
+								{EtsTab, TabKey} ->
+									{EtsTabKeys, getEtsTabValue(EtsTab, TabKey, undefined)};
+								{EtsTab, TabKey, DefValue} ->
+									{{EtsTab, TabKey}, getEtsTabValue(EtsTab, TabKey, DefValue)}
+							end,
+						EtsTabValue = [TEtsTabValue],
 						case transactionApply(MFAOrFun, EtsTabValue) of
 							{alterTab, AlterTab} ->
-								[changeEtsTabValue(OneEtsTab, OneKey, ChangeValue) || {OneEtsTab, OneKey} := ChangeValue <- AlterTab],
+								[changeEtsTabValue(OneEtsTab, OneKey, ChangeValue) || {{OneEtsTab, OneKey}, ChangeValue} <- AlterTab],
 								ok;
 							{alterTab, Ret, AlterTab} ->
-								[changeEtsTabValue(OneEtsTab, OneKey, ChangeValue) || {OneEtsTab, OneKey} := ChangeValue <- AlterTab],
+								[changeEtsTabValue(OneEtsTab, OneKey, ChangeValue) || {{OneEtsTab, OneKey}, ChangeValue} <- AlterTab],
 								Ret;
 							OtherRet ->
 								OtherRet
@@ -479,7 +503,7 @@ getEtsTabValue(Ets, Key, DefValue) ->
 
 changeEtsTabValue(?noneTab, _Key, _Value) ->
 	ok;
-changeEtsTabValue(Ets, Key, delete) ->
+changeEtsTabValue(Ets, Key, '$delete') ->
 	ets:delete(Ets, Key);
 changeEtsTabValue(Ets, _Key, Value) ->
 	ets:insert(Ets, Value).

@@ -8,14 +8,16 @@
 
 %% 默认超时时间单位:Ms
 -define(LockTimeOut, 5000).
+%% 快速自旋次数（无延迟重试）
+-define(SpinCount, 3).
 %% 第一次超时重试时间单位:Ms
 -define(ReTryTime1, 1).
 %% 第二次超时重试时间单位:Ms
--define(ReTryTime2, 2).
+-define(ReTryTime2, 1).
 %% 第三次超时重试时间单位:Ms
--define(ReTryTime3, 4).
+-define(ReTryTime3, 2).
 %% 最后每次超时重试时间单位:Ms
--define(ReTryTimeL, 6).
+-define(ReTryTimeL, 5).
 
 %% 数组数量
 -define(eGLockSize, 2097152).
@@ -50,11 +52,22 @@ tryLock(KeyOrKeys, TimeOut) ->
 	end.
 
 doTryLock(KeyIx, TimeOut) ->
-	case eNifLock:tryLock(KeyIx) of
+	%% 先快速自旋重试，减少receive开销
+	case spinTryLock(?SpinCount, KeyIx) of
 		true ->
 			true;
 		_ ->
 			loopLock1(KeyIx, TimeOut)
+	end.
+
+spinTryLock(0, _KeyIx) ->
+	false;
+spinTryLock(Count, KeyIx) ->
+	case eNifLock:tryLock(KeyIx) of
+		true ->
+			true;
+		_ ->
+			spinTryLock(Count - 1, KeyIx)
 	end.
 
 loopLock1(KeyIx, TimeOut) ->
@@ -126,11 +139,22 @@ loopLockL(KeyIx, TimeOut) ->
 	end.
 
 doTryLocks(KeyIxs, TimeOut) ->
-	case eNifLock:tryLocks(KeyIxs) of
+	%% 先快速自旋重试
+	case spinTryLocks(KeyIxs, ?SpinCount) of
 		true ->
 			true;
 		_ ->
 			loopLocks1(KeyIxs, TimeOut)
+	end.
+
+spinTryLocks(_KeyIxs, 0) ->
+	false;
+spinTryLocks(KeyIxs, Count) ->
+	case eNifLock:tryLocks(KeyIxs) of
+		true ->
+			true;
+		_ ->
+			spinTryLocks(KeyIxs, Count - 1)
 	end.
 
 loopLocks1(KeyIxs, TimeOut) ->

@@ -117,10 +117,10 @@ handle_call(_Msg, _State, _FROM) ->
 
 %% 默认匹配
 handle_cast(_Msg, _State) ->
-	kpS.
+	{noreply, _State}.
 
 handle_info(_Msg, _State) ->
-	kpS.
+	{noreply, _State}.
 
 terminate(_Reason, _State) ->
 	ok.
